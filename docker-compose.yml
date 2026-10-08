@@ -11,3 +11,19 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./backend/data:/app/data:ro
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev # Development Dockerfile
+    container_name: nextjs-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app # Sincronizza il codice locale per l'Hot Reload
+      - /app/node_modules # Isola i node_modules del container
+      - /app/.next # Isola la cache di Next.js
+    env_file:
+      - ./frontend/.env.development
+    environment:
+      - NODE_ENV=development
