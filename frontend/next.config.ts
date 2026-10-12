@@ -14,7 +14,13 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "5mb",
+    },
+  },
   output: isProduction ? "standalone" : undefined,
+  allowedDevOrigins: ["192.168.1.106"],
 };
 
 export default nextConfig;

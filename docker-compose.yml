@@ -20,7 +20,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend:/app # Sincronizza il codice locale per l'Hot Reload
+      - ./frontend:/app:rw # Sincronizza il codice locale per il refresh
       - /app/node_modules # Isola i node_modules del container
       - /app/.next # Isola la cache di Next.js
     env_file:
