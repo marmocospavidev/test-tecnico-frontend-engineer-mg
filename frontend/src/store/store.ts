@@ -3,10 +3,15 @@ import {
   configureStore,
   ThunkAction,
 } from "@reduxjs/toolkit";
+import { chatApi } from "./chatApi";
 
 export const makeStore = () => {
   return configureStore({
-    reducer: {},
+    reducer: {
+      [chatApi.reducerPath]: chatApi.reducer,
+    },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(chatApi.middleware),
   });
 };
 

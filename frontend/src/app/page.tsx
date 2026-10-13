@@ -81,7 +81,7 @@ function Home() {
   }, [loginState]);
 
   return (
-    <main className="w-full min-h-screen flex justify-center">
+    <main className="w-full min-h-dvh flex justify-center">
       <div className="w-full grow lg:w-[50%] lg:max-w-md flex flex-col justify-center items-center gap-4">
         <Card
           size="default"
@@ -93,7 +93,7 @@ function Home() {
               alt=""
               width={3800}
               height={1149}
-              className="w-full justify-self-center col-span-full"
+              className="w-full justify-self-center col-span-full dark:mb-3 dark:rounded-lg dark:bg-white dark:p-3"
             />
             <CardTitle className="row-start-2">
               Login

@@ -1,0 +1,186 @@
+# Analisi e implementazione della Chat Context API
+
+## Obiettivo
+Analizza approfonditamente la codebase esistente e implementa la migliore soluzione tecnica per gestire lo stato e le operazioni della chat, integrando invio dei messaggi, streaming NDJSON, upload dei documenti, recupero delle conversazioni e sincronizzazione con il routing di Next.js.
+
+L'obiettivo è ottenere un'architettura robusta, tipizzata, manutenibile e performante, rispettando i principi SOLID quando applicabili, DRY, separation of concerns e single source of truth, senza introdurre astrazioni o complessità non necessarie.
+
+**Non limitarti a proporre una soluzione: implementala direttamente nella codebase.**
+
+## 1. Analisi preliminare della codebase
+Prima di modificare il codice:
+
+- Analizza la struttura del progetto e individua la Context API, il reducer, i tipi e le interfacce esistenti, le funzioni API, i componenti della chat e la gestione del routing.
+- Esamina le implementazioni di `chat()`, `uploadDocuments()` e degli endpoint relativi alle conversazioni.
+- Verifica come vengono gestiti attualmente i messaggi, lo streaming NDJSON, gli errori, i cookie, i riferimenti ai documenti e lo stato di caricamento.
+- Individua eventuali duplicazioni, problemi di sincronizzazione, race condition e inefficienze nella gestione dello stato.
+- Riutilizza le implementazioni e le convenzioni già presenti quando sono corrette. Non introdurre nuove dipendenze se non strettamente necessario.
+Al termine dell'analisi, definisci brevemente l'architettura da adottare e procedi con l'implementazione.
+
+## 2. Gestione centralizzata dello stato
+Implementa la gestione dello stato della chat utilizzando la Context API e il reducer già presenti nel progetto, se disponibili.
+
+La soluzione deve garantire:
+
+- Una fonte di verità coerente per messaggi, conversazione corrente, chat recenti, stato dello streaming, upload e relativi errori.
+- Azioni e transizioni di stato esplicite, prevedibili e type-safe.
+- Separazione tra logica di business, comunicazione con le API e presentazione dei componenti.
+- Tipizzazione rigorosa di tutti gli stati, delle azioni, delle response API e dei payload.
+- Assenza di duplicazioni nella definizione di tipi, interfacce, utility e logica condivisa.
+Evita di introdurre stato ridondante quando un valore può essere derivato da quello esistente. Valuta attentamente come evitare aggiornamenti inutili e render superflui, soprattutto durante lo streaming.
+
+## 3. Invio dei messaggi e streaming NDJSON
+Implementa o completa `sendMessage()`, che deve utilizzare la funzione API `chat()` già presente.
+
+Il flusso deve:
+
+1. Validare i dati necessari e impedire invii non validi.
+2. Aggiungere il messaggio dell'utente alla conversazione corrente.
+3. Creare il messaggio dell'assistant in uno stato iniziale coerente.
+4. Invocare `chat()` passando query, cronologia dei messaggi e gli eventuali parametri richiesti dall'API.
+5. Leggere e decodificare correttamente lo stream NDJSON, gestendo chunk parziali, righe incomplete, caratteri UTF-8 suddivisi tra chunk e il messaggio finale.
+6. Aggiornare progressivamente il messaggio dell'assistant man mano che arrivano i delta.
+7. Gestire gli eventuali eventi finali, incluse le references o i metadati dei documenti restituiti dal backend.
+8. Gestire correttamente il completamento dello stream, gli errori HTTP, gli errori di parsing, le interruzioni della connessione e gli annullamenti.
+9. Ripristinare sempre lo stato di loading/streaming anche in caso di errore.
+10. Aggiornare le chat recenti e i dati della conversazione quando necessario, evitando richieste duplicate.
+Rispetta esattamente il protocollo NDJSON già definito nel progetto. Non inventare nuovi formati di eventi o modificare il contratto API senza una motivazione concreta.
+
+Presta particolare attenzione alle prestazioni: evita di ricostruire inutilmente l'intero array dei messaggi e di eseguire scansioni ripetute per individuare il messaggio dell'assistant da aggiornare. Valuta una strategia che identifichi direttamente il messaggio target, mantenendo comunque lo stato immutabile e coerente.
+
+Definisci chiaramente il comportamento in caso di invii concorrenti e impedisci che uno stream obsoleto modifichi una conversazione diversa da quella a cui appartiene.
+
+## 4. Upload dei documenti
+Implementa o completa una funzione dedicata all'upload, utilizzando `uploadDocuments()`.
+
+La gestione deve:
+
+- Supportare i file e le modalità di selezione già previste dal progetto.
+- Inviare correttamente i dati multipart/form-data secondo il contratto dell'endpoint esistente.
+- Gestire lo stato di caricamento e gli errori.
+- Elaborare la response, che contiene i metadati dei file e il messaggio restituito dal backend.
+- Aggiornare lo stato della chat in modo coerente con il formato effettivo della response.
+- Preservare i metadati necessari, senza perdere informazioni già presenti.
+- Evitare duplicazioni dei messaggi o dei file e gestire correttamente gli upload multipli, se supportati.
+Mantieni separata la logica di trasporto HTTP dalla logica di aggiornamento dello stato. Riutilizza i tipi e le utility condivisi dove appropriato.
+
+Non presumere che l'upload debba necessariamente avviare una richiesta di chat: verifica il comportamento atteso dal backend e implementa il flusso coerente con il contratto esistente.
+
+## 5. Recupero delle chat recenti
+Integra il recupero delle conversazioni dall'endpoint:
+
+`GET /chat`
+
+Implementa una funzione dedicata al caricamento delle chat recenti e integra la sua gestione nella Context API o nel livello di data fetching già adottato dal progetto.
+
+La soluzione deve prevedere:
+
+- Stato di loading, gestione degli errori e aggiornamento dei dati.
+- Tipizzazione della response.
+- Evitare richieste duplicate durante il mount e i re-render.
+- Aggiornamento della lista quando viene creata una nuova conversazione o quando cambia una conversazione esistente.
+- Gestione coerente della cache e dell'invalidazione.
+Dopo il primo messaggio inviato in una nuova conversazione, aggiorna la lista delle chat recenti quando il backend rende disponibile la nuova conversazione. Evita di eseguire la stessa richiesta più volte per il medesimo evento.
+
+Valuta le funzionalità già disponibili nel progetto prima di introdurre una nuova soluzione di caching.
+
+## 6. Recupero di una singola conversazione
+Integra il recupero di una conversazione tramite:
+
+`GET /chat/${chat_id}`
+
+Quando viene aperta una chat esistente:
+
+- Recupera i dati della conversazione tramite l'endpoint corretto.
+- Inizializza i messaggi nello stato senza duplicarli o concatenarli accidentalmente a quelli della conversazione precedente.
+- Gestisci loading, errori e cambi rapidi tra conversazioni.
+- Evita che una response appartenente a una richiesta precedente sovrascriva lo stato della chat attualmente selezionata.
+- Evita richieste duplicate quando la conversazione è già disponibile in una cache valida.
+Distingui chiaramente il caricamento iniziale della conversazione dal caricamento incrementale dei messaggi durante lo streaming.
+
+## 7. Sincronizzazione con Next.js App Router
+La chat deve essere sincronizzata con il routing del progetto.
+
+Quando viene creata una nuova conversazione e il backend rende disponibile il relativo `chatId`:
+
+- Aggiorna il path al formato `/chat/${chatId}` utilizzando le API di routing già adottate dal progetto.
+- Evita navigazioni duplicate e aggiornamenti superflui.
+- Aggiorna le chat recenti quando necessario.
+- Mantieni coerenti URL, conversazione selezionata e messaggi visualizzati.
+Quando si entra in una route `/chat/[chatId]`:
+
+- Recupera la conversazione corretta.
+- Evita di reinizializzare inutilmente lo stato se i dati sono già disponibili e validi.
+- Gestisci correttamente la navigazione tra chat diverse, il refresh della pagina e l'accesso diretto tramite URL.
+- Impedisci che il cambio di route lasci visibili messaggi appartenenti alla conversazione precedente.
+Analizza la struttura delle route esistenti prima di apportare modifiche. Rispetta il funzionamento di App Router, Server Components e Client Components, senza convertire inutilmente componenti server in client.
+
+## 8. Strategia di caching e sincronizzazione
+Progetta una strategia di caching coerente per la lista delle chat e per le singole conversazioni.
+
+Prima di implementarla, verifica quali strumenti sono già presenti nel progetto, inclusi eventuali sistemi di caching, librerie di data fetching e meccanismi di invalidazione.
+
+La strategia deve:
+
+- Evitare fetch ripetuti non necessari.
+- Evitare dati obsoleti dopo l'invio di un messaggio o la creazione di una conversazione.
+- Distinguere i dati persistenti lato server dallo stato transitorio della UI.
+- Gestire correttamente navigazione, refresh, mount ripetuti e richieste concorrenti.
+- Evitare di mantenere copie indipendenti e divergenti degli stessi dati.
+- Prevedere invalidazione o aggiornamento mirato dei dati quando necessario.
+Non introdurre React Query, SWR o altre dipendenze se il progetto dispone già di strumenti adeguati o se una soluzione più semplice è sufficiente.
+
+Motiva brevemente le scelte architetturali che incidono sulla gestione della cache.
+
+## 9. Tipi, interfacce e principi DRY
+Rivedi i tipi e le interfacce esistenti e centralizza le definizioni condivise.
+
+In particolare:
+
+- Riutilizza i tipi dei messaggi, delle references, dei metadati dei documenti e delle response API.
+- Separa i tipi dei messaggi visualizzati nella UI dai payload richiesti o restituiti dal backend quando hanno responsabilità differenti.
+- Usa union type discriminati per rappresentare varianti di messaggio ed eventi di streaming, se coerenti con il modello esistente.
+- Usa type guard o type predicate correttamente quando necessario.
+- Evita cast forzati, duplicazioni di interfacce e tipi eccessivamente permissivi.
+- Mantieni una tipizzazione rigorosa delle action del reducer e dei relativi payload.
+- Evita di duplicare costanti, URL degli endpoint e logica di trasformazione delle response.
+Non creare astrazioni generiche inutili: l'obiettivo è eliminare le duplicazioni reali, non aumentare il numero di livelli architetturali.
+
+## 10. Gestione degli errori e casi limite
+Verifica almeno i seguenti scenari:
+
+- Errore HTTP durante l'invio di un messaggio.
+- Stream interrotto o NDJSON malformato.
+- Errore durante l'upload di uno o più documenti.
+- Errore nel recupero delle chat recenti o di una conversazione.
+- Cambio di route mentre una richiesta è ancora in corso.
+- Invii ripetuti o concorrenti.
+- Creazione di una nuova chat seguita immediatamente da una navigazione.
+- Response asincrone che arrivano in ordine diverso da quello delle richieste.
+- Mount ripetuti in ambiente React Strict Mode.
+- Messaggi o metadati duplicati dopo aggiornamenti dello stato.
+Usa `AbortController` o meccanismi equivalenti quando opportuno e compatibile con le funzioni API esistenti.
+
+Gli errori devono essere rappresentati nello stato in modo coerente, senza lasciare la chat bloccata in loading o cancellare messaggi validi già ricevuti.
+
+## 11. Verifiche e criteri di completamento
+Al termine dell'implementazione:
+
+1. Esegui i controlli disponibili nel progetto, come TypeScript, lint e test.
+2. Correggi gli errori introdotti dalle modifiche.
+3. Verifica che le firme delle API esistenti siano rispettate.
+4. Controlla che non siano stati introdotti tipi duplicati o cast non necessari.
+5. Verifica che il flusso completo funzioni sia con una nuova conversazione sia con una conversazione esistente.
+6. Se esistono test, aggiornali o aggiungine per i casi critici della logica di stato, dello streaming e della sincronizzazione delle chat.
+Non dichiarare superati controlli che non sono stati effettivamente eseguiti.
+
+## Output finale
+Dopo aver completato le modifiche, fornisci un riepilogo conciso contenente:
+
+- Architettura adottata e motivazioni principali.
+- File creati o modificati e relativa responsabilità.
+- Flusso di invio messaggi, upload, recupero conversazioni e routing.
+- Strategia di caching e invalidazione.
+- Test e controlli eseguiti, con i relativi risultati.
+- Eventuali problemi preesistenti o limitazioni che non è stato possibile risolvere.
+**Priorità assolute:** correttezza dello stato, gestione robusta dello streaming, sincronizzazione tra URL e conversazione, caching efficace, type safety, prestazioni e semplicità architetturale.

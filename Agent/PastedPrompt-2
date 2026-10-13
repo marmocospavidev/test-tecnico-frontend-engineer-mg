@@ -1,0 +1,309 @@
+# Implementazione funzionalità mancanti — PDF, Fact-checking e UX degli stati
+
+## Obiettivo
+Analizza la codebase esistente e implementa direttamente le funzionalità mancanti del test tecnico Frontend Software Engineer di Datapizza, rispettando le specifiche del PDF allegato e l'architettura già presente nel progetto.
+
+Le funzionalità da completare sono:
+
+1. Una pagina `/documents` per visualizzare i PDF caricati e consultarne i metadati.
+2. Un sistema di fact-checking integrato nella chat, con citazioni collegate ai documenti e visualizzazione delle bounding regions sulle pagine PDF.
+3. Una gestione rigorosa e coerente degli stati dell'applicazione, in particolare durante lo streaming della chat, l'upload dei documenti e il caricamento dei dati.
+**Implementa le funzionalità direttamente nella codebase. Non limitarti a fornire esempi di codice o una proposta architetturale.**
+
+## 1. Analisi preliminare
+Prima di apportare modifiche, analizza:
+
+- La struttura del progetto Next.js e le route esistenti.
+- La Context API, il reducer e i tipi dei messaggi.
+- Le funzioni API già disponibili, in particolare `chat()`, `uploadDocuments()` e quelle relative ai documenti.
+- Le interfacce TypeScript delle response e il formato effettivo delle references.
+- I componenti UI esistenti, inclusi dialog, modal, card, tooltip, badge e indicatori di caricamento.
+- Le dipendenze già installate per la visualizzazione dei PDF.
+- La gestione attuale dello streaming NDJSON e degli stati di errore.
+Riutilizza i componenti, gli hook, i tipi e le funzioni già presenti quando possibile. Evita duplicazioni e non introdurre nuove dipendenze se quelle esistenti sono sufficienti.
+
+Se una specifica del backend non è chiara, verifica il contratto effettivo nelle implementazioni disponibili o nella documentazione Swagger, senza inventare campi o endpoint.
+
+## 2. Pagina `/documents`
+Implementa una pagina dedicata alla visualizzazione dei documenti caricati, accessibile tramite la route `/documents`.
+
+### Recupero dei documenti
+Utilizza l'endpoint esistente:
+
+`GET /api/documents/`
+
+La pagina deve mostrare tutti i documenti disponibili per l'utente corrente, utilizzando i metadati restituiti dal backend.
+
+Per ogni documento, mostra le informazioni realmente disponibili, ad esempio:
+
+- Nome del file.
+- ID del documento, se utile.
+- Altri metadati significativi restituiti dall'API.
+Non inventare informazioni non presenti nella response.
+
+### Interfaccia utente
+Realizza una UI coerente con il design system già adottato nel progetto, con:
+
+- Una lista o griglia di documenti.
+- Un layout responsive.
+- Uno stato di caricamento durante il fetch iniziale.
+- Uno stato vuoto quando non sono presenti documenti.
+- Una gestione degli errori comprensibile.
+- Un modo per aggiornare la lista dopo un upload riuscito, senza richiedere necessariamente un refresh completo della pagina.
+Evita di effettuare fetch duplicati a causa dei re-render o del mount ripetuto dei componenti.
+
+### Modale dei metadati
+Cliccando su un documento deve aprirsi un modale contenente i metadati del file selezionato.
+
+Utilizza:
+
+`GET /api/documents/{doc_id}`
+
+Il modale deve:
+
+- Mostrare uno stato di caricamento durante il recupero dei dettagli.
+- Visualizzare i metadati effettivamente restituiti dal backend.
+- Gestire eventuali errori di caricamento.
+- Chiudersi tramite il pulsante dedicato, il tasto Escape e le modalità previste dal componente Dialog già utilizzato.
+- Gestire correttamente il passaggio da un documento all'altro, evitando che una response precedente venga mostrata nel modale sbagliato.
+Se i metadati completi sono già disponibili in una cache valida, riutilizzali senza effettuare richieste inutili.
+
+Valuta se sia utile includere nel modale una preview del PDF, ma dai priorità alla visualizzazione corretta dei metadati e al riutilizzo del componente PDF richiesto per il fact-checking.
+
+## 3. Sistema di fact-checking delle risposte
+Implementa un sistema di fact-checking direttamente all'interno dei messaggi dell'assistant che contengono references restituite dallo streaming NDJSON.
+
+Il backend invia eventi di contenuto e un evento finale di citazioni, indicativamente nella forma:
+
+- `type: "content"` con `delta`.
+- `type: "citations"` con `references`.
+Ogni reference può contenere:
+
+- `document_id`
+- `filename`
+- `page_number`
+- `text_quote`
+- `bounding_regions`
+Le bounding regions contengono informazioni sulle pagine e rettangoli espressi in pollici, secondo il formato descritto nel PDF del test.
+
+Verifica i tipi effettivi presenti nel progetto prima di implementare la logica.
+
+### UI delle citazioni
+Per ogni risposta dell'assistant che presenta references, aggiungi una sezione facilmente riconoscibile, ad esempio «Fonti e fact-checking» o «Documenti correlati».
+
+Per ogni citazione mostra almeno:
+
+- Nome del documento.
+- Numero della pagina.
+- Testo della citazione (`text_quote`).
+La sezione deve essere associata al singolo messaggio dell'assistant, non globalmente alla conversazione.
+
+Se il backend restituisce più references, devono essere visualizzate tutte senza sovrascrivere quelle precedenti.
+
+Se una risposta non contiene citazioni, non mostrare un contenitore vuoto.
+
+Durante lo streaming, la UI deve distinguere tra risposta ancora in generazione e risposta completata. Non mostrare prematuramente il fact-checking come definitivo prima di aver ricevuto le references, salvo che il protocollo esistente preveda esplicitamente eventi intermedi di citazione.
+
+### Interazione con le fonti
+Rendi cliccabili le singole citazioni.
+
+Al click, l'utente deve poter consultare il documento e la pagina di origine, con la relativa evidenziazione delle bounding regions.
+
+Se più citazioni appartengono allo stesso documento, consenti di passare da una citazione all'altra senza perdere il contesto della pagina selezionata.
+
+Gestisci correttamente references prive di bounding regions o con metadati incompleti: la citazione testuale deve rimanere consultabile anche quando non è possibile evidenziare una regione.
+
+## 4. Visualizzazione del PDF e bounding regions
+Implementa un componente riutilizzabile per visualizzare un PDF e sovrapporre le bounding regions ricevute dal backend.
+
+Per recuperare il documento utilizza l'endpoint esistente:
+
+`GET /api/documents/{doc_id}/file`
+
+### Requisiti del visualizzatore
+
+- Visualizzare il PDF effettivo restituito dal backend.
+- Consentire di raggiungere la pagina indicata dalla citazione.
+- Evidenziare le regioni corrispondenti alla citazione selezionata.
+- Supportare più rettangoli per la stessa regione o citazione.
+- Aggiornare pagina ed evidenziazione quando cambia la citazione selezionata.
+- Gestire caricamento, errore di recupero del PDF e documento non disponibile.
+- Evitare di scaricare nuovamente lo stesso PDF a ogni cambio di citazione, quando è possibile riutilizzare una risorsa in cache.
+- Liberare correttamente le risorse temporanee create per visualizzare i PDF, se presenti.
+Puoi integrare il visualizzatore nel modale dei metadati, in un dialog dedicato o in un pannello laterale della chat. Scegli la soluzione che offre la migliore esperienza utente e si integra meglio con il layout esistente.
+
+### Conversione delle coordinate
+La parte più importante è rappresentare correttamente le bounding regions.
+
+Il backend restituisce rettangoli nel formato:
+
+`[x, y, width, height]`
+
+Le coordinate sono espresse in pollici.
+
+Non trattare questi valori come pixel CSS e non applicare fattori di conversione arbitrari.
+
+Analizza il sistema di coordinate utilizzato dal backend e il modo in cui la libreria PDF espone le dimensioni effettive della pagina.
+
+Implementa un sistema di coordinate condiviso tra pagina PDF e overlay, così che:
+
+- Le evidenziazioni siano posizionate correttamente.
+- Lo zoom e il ridimensionamento non alterino l'allineamento.
+- Il passaggio tra pagine con dimensioni diverse funzioni correttamente.
+- La posizione dei rettangoli rimanga corretta anche in un layout responsive.
+- Le coordinate siano convertite correttamente se il sistema del backend e quello del visualizzatore utilizzano origini differenti.
+Se necessario, gestisci la trasformazione tra coordinate PDF e coordinate del viewport, considerando l'origine degli assi e l'eventuale rotazione della pagina.
+
+Prima di implementare la trasformazione, verifica il significato effettivo dei campi restituiti dal backend e documenta le eventuali assunzioni.
+
+### Architettura del componente
+Se nel progetto è già presente una libreria PDF adeguata, riutilizzala.
+
+Altrimenti valuta una soluzione compatibile con Next.js App Router, prestando attenzione ai componenti che richiedono il browser e ai worker PDF.
+
+Se scegli React-PDF o PDF.js, gestisci correttamente la configurazione del worker e gli eventuali requisiti di rendering client-side.
+
+Mantieni separati:
+
+- Recupero del file PDF.
+- Rendering della pagina.
+- Calcolo delle coordinate.
+- Rendering dell'overlay.
+- Selezione della citazione e della pagina.
+Non duplicare la logica di conversione delle coordinate in più componenti.
+
+## 5. Stati applicativi e streaming della chat
+Rivedi e completa la gestione degli stati della chat esistente.
+
+L'obiettivo è che l'utente capisca sempre cosa sta accadendo e non possa avviare operazioni incompatibili tra loro.
+
+### Stato iniziale del messaggio dell'assistant
+Quando viene inviata una query:
+
+1. Aggiungi il messaggio dell'utente.
+2. Crea immediatamente il messaggio dell'assistant con `content: ""`.
+3. Attiva lo stato di streaming.
+4. Mostra un indicatore di generazione finché non arriva il primo contenuto.
+5. Al primo delta ricevuto, aggiorna il messaggio dell'assistant e mostra il testo progressivamente.
+6. Quando lo stream termina, rimuovi l'indicatore e completa il messaggio.
+**Un messaggio dell'assistant con **`content === ""`** mentre lo stream è attivo non deve essere interpretato come una risposta vuota completata.**
+
+Distingui lo stato della richiesta dal contenuto del messaggio. Non dedurre il completamento dello streaming soltanto dalla presenza o dall'assenza di testo.
+
+### Stati da gestire
+Definisci stati chiari e coerenti per almeno:
+
+- Invio della domanda.
+- Attesa del primo chunk.
+- Streaming del contenuto.
+- Completamento dello stream.
+- Errore durante la richiesta.
+- Errore durante lo streaming.
+- Caricamento della lista delle chat.
+- Caricamento di una conversazione esistente.
+- Upload dei documenti.
+- Recupero della lista dei documenti.
+- Recupero dei metadati.
+- Recupero e rendering del PDF.
+Riutilizza gli stati e le action già esistenti, se sufficienti. Non creare variabili ridondanti per informazioni già rappresentate in modo affidabile dal reducer.
+
+Se necessario, distingui gli stati della singola operazione da quelli globali, così che il caricamento dei metadati di un documento non blocchi inutilmente l'intera applicazione.
+
+### Disabilitazione dei controlli durante lo streaming
+Finché una richiesta di chat è in streaming:
+
+- Disabilita il pulsante di invio.
+- Disabilita il submit tramite Enter, se utilizzato dal form.
+- Impedisci l'invio tramite chiamate ripetute alla funzione `sendMessage()`.
+- Disabilita il controllo di upload dei documenti e impedisci l'avvio di nuovi upload.
+- Mostra un feedback visivo coerente sui controlli disabilitati.
+- Mantieni leggibili i messaggi già presenti e continua ad aggiornare quello dell'assistant.
+Non affidarti esclusivamente alla proprietà `disabled` dei pulsanti: la funzione di business deve impedire gli invii non validi anche se viene invocata direttamente.
+
+Verifica inoltre che i controlli siano ripristinati correttamente al completamento, in caso di errore e in caso di annullamento dello stream.
+
+Se esistono operazioni di navigazione o altre azioni che possono interferire con lo stream, definisci un comportamento coerente con l'architettura già implementata.
+
+### Stati visuali
+Utilizza indicatori coerenti con i componenti già presenti nel progetto.
+
+Esempi:
+
+- Attesa della prima risposta: spinner o indicatore di generazione.
+- Streaming: indicatore discreto di attività.
+- Upload: progress indicator o stato di caricamento.
+- Recupero documenti: skeleton o placeholder.
+- Errore: messaggio comprensibile e azione di recupero quando possibile.
+- Lista vuota: messaggio esplicativo e invito a caricare documenti.
+Non confondere il caricamento iniziale di una pagina con l'aggiornamento di dati già visibili.
+
+Evita flash di contenuto vuoto, spinner permanenti, doppie indicazioni di loading e transizioni incoerenti tra uno stato e l'altro.
+
+## 6. Coerenza tra upload e lista dei documenti
+Integra l'upload già implementato con la nuova pagina `/documents`.
+
+Dopo un upload riuscito:
+
+- Aggiorna la lista dei documenti secondo la strategia di caching già adottata.
+- Evita di duplicare i documenti nella UI.
+- Mantieni coerenti i metadati restituiti dall'upload e quelli recuperati tramite `GET /api/documents/`.
+- Mostra errori leggibili se il backend rifiuta uno o più file.
+- Ripristina lo stato del form in modo corretto.
+Non effettuare refresh completi della pagina per aggiornare i documenti.
+
+Se la Context API è già la fonte di verità dei dati condivisi, valuta di centralizzare lì l'aggiornamento della lista. Se invece esiste già un livello di data fetching con cache e invalidazione, riutilizzalo anziché introdurre un secondo meccanismo indipendente.
+
+## 7. Type safety e principi DRY
+Mantieni una tipizzazione rigorosa e coerente.
+
+- Riutilizza le interfacce esistenti per documenti, references, bounding regions e messaggi.
+- Definisci nuovi tipi soltanto quando rappresentano realmente nuove entità o stati.
+- Evita di duplicare le strutture delle response API.
+- Centralizza le utility per conversione delle coordinate, recupero dei PDF e gestione delle references.
+- Usa type guard quando necessario.
+- Evita `any`, cast forzati e accessi non sicuri ai dati.
+- Mantieni il reducer prevedibile e immutabile.
+- Evita di aggiornare l'intero stato globale per operazioni che interessano esclusivamente un componente locale.
+Non modificare i contratti delle API backend per adattarli al frontend. Se occorre trasformare una response, fallo esplicitamente nel livello di integrazione appropriato.
+
+## 8. Accessibilità e qualità dell'interfaccia
+Assicurati che:
+
+- I modali siano accessibili da tastiera.
+- Il focus venga gestito correttamente all'apertura e alla chiusura.
+- I controlli abbiano etichette comprensibili.
+- Gli stati di caricamento siano comunicati anche alle tecnologie assistive, ad esempio con `aria-busy` o `aria-live` dove appropriato.
+- I controlli disabilitati abbiano un comportamento coerente.
+- Le bounding regions siano visibili senza rendere il contenuto PDF illeggibile.
+- Il layout funzioni sia su desktop sia su dispositivi mobili.
+Rispetta il design system esistente ed evita di introdurre stili o componenti duplicati.
+
+## 9. Verifica finale
+Al termine dell'implementazione:
+
+1. Esegui i controlli TypeScript, lint e test disponibili.
+2. Verifica che la route `/documents` sia accessibile e recuperi correttamente i documenti.
+3. Verifica l'apertura del modale e il caricamento dei metadati.
+4. Verifica il recupero del PDF e il passaggio tra le pagine.
+5. Verifica che le bounding regions siano allineate alla citazione corretta, anche dopo zoom e resize.
+6. Verifica che le references rimangano associate al messaggio corretto.
+7. Verifica che durante lo streaming non sia possibile inviare altre domande o avviare upload.
+8. Verifica che tutti i controlli siano ripristinati in caso di successo, errore o annullamento.
+9. Verifica che l'upload aggiorni la lista dei documenti senza duplicazioni.
+10. Controlla che non siano state introdotte richieste duplicate o regressioni nelle funzionalità già esistenti.
+Se non è possibile verificare un comportamento perché il backend o i dati necessari non sono disponibili, segnalalo esplicitamente.
+
+## Output finale
+Al termine, fornisci un riepilogo sintetico con:
+
+- File creati e modificati.
+- Implementazione della pagina `/documents`.
+- Funzionamento del modale e del visualizzatore PDF.
+- Strategia utilizzata per le bounding regions e conversione delle coordinate.
+- Stati applicativi introdotti o corretti.
+- Comportamento dei controlli durante lo streaming.
+- Test eseguiti e relativi risultati.
+- Eventuali limitazioni ancora presenti.
+**Priorità:** correttezza del fact-checking, precisione geometrica delle bounding regions, coerenza degli stati, accessibilità, type safety e riutilizzo dell'architettura esistente.
+
+Prima di concludere, verifica che le funzionalità implementate rispettino le specifiche del PDF Datapizza e che non siano state introdotte regressioni nelle funzionalità già sviluppate.

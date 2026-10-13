@@ -14,26 +14,11 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from "../ui/sidebar";
-import { Avatar, AvatarFallback } from "../ui/avatar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../ui/popover";
-import { Button } from "../ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import {
-  FileText,
-  LogOutIcon,
-  MessageSquare,
-  SquarePen,
-} from "lucide-react";
+import { FileText } from "lucide-react";
 import Link from "next/link";
+import { NewChatMenuItem, RecentChats } from "./SidebarChats";
+import { SidebarUser } from "./SidebarUser";
+import { SidebarLogoIcon } from "./SidebarLogoIcon";
 
 function AppSidebar() {
   return (
@@ -47,26 +32,21 @@ function AppSidebar() {
           <span className="sidebar-collapsible-item">
             Chat
           </span>
-          <SidebarTrigger size="icon" />
+          <SidebarTrigger
+            size="icon"
+            className="group/trigger"
+            icon={<SidebarLogoIcon />}
+          />
         </SidebarGroup>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
+              <NewChatMenuItem />
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  render={<Link href={"#"} />}
-                >
-                  <SquarePen className="text-muted-foreground" />
-                  <span className="sidebar-collapsible-item">
-                    Nuova chat
-                  </span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href={"#"} />}
+                  render={<Link href="/documents" />}
                 >
                   <FileText className="text-muted-foreground" />
                   <span className="sidebar-collapsible-item">
@@ -77,52 +57,10 @@ function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup className="sidebar-collapsible-item">
-          <SidebarGroupLabel>
-            Chat recenti
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href={"#"} />}
-                >
-                  <MessageSquare className="text-muted-foreground" />
-                  <span>Chat 1</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <RecentChats />
       </SidebarContent>
       <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="rounded-full"
-                  >
-                    <Avatar>
-                      <AvatarFallback>
-                        {"MG"}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                }
-              ></DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem variant="destructive">
-                  <LogOutIcon />
-                  Log out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <SidebarUser />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

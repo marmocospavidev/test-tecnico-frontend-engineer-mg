@@ -8,7 +8,7 @@ type HTMLRendererProps = {
 };
 
 export function HTMLRenderer({ html }: HTMLRendererProps) {
-  const sanitizedHTML = DOMPurify.sanitize(html);
+  const sanitizedHTML = DOMPurify.sanitize(html.trim());
 
-  return <>{parse(sanitizedHTML)}</>;
+  return <div className="chat-prose">{parse(sanitizedHTML)}</div>;
 }

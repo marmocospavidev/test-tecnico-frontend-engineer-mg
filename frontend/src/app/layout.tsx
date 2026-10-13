@@ -6,10 +6,15 @@ import { ThemeProvider } from "@/context/ThemeProvider";
 import { cn } from "cn";
 import { AuthProvider } from "@/context/AuthContext";
 import { getSession } from "@/lib/jwt";
+import { Suspense, type ReactNode } from "react";
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Consente a env(safe-area-inset-*) di funzionare sui telefoni con notch e
+  // fa ridurre il layout con la tastiera a schermo, così l'input resta visibile.
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
 
 export const metadata: Metadata = {
@@ -18,11 +23,34 @@ export const metadata: Metadata = {
     "Test tecnico per la posizione di Frontend Software Engineer presso Datapizza",
 };
 
-export default async function RootLayout({
+// La sessione viene letta dai cookie a runtime, quindi deve stare dietro un
+// confine Suspense per mantenere prerenderizzabile il layout radice.
+async function SessionProviders({
   children,
-}: LayoutProps<"/">) {
+}: {
+  children: ReactNode;
+}) {
   const session = await getSession();
 
+  return (
+    <AuthProvider
+      auth={session || false}
+      key={session?.user_id || undefined}
+    >
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+      >
+        {children}
+      </ThemeProvider>
+    </AuthProvider>
+  );
+}
+
+export default function RootLayout({
+  children,
+}: LayoutProps<"/">) {
   return (
     <html
       lang="it"
@@ -36,18 +64,9 @@ export default async function RootLayout({
       <head></head>
 
       <body className="min-h-full">
-        <AuthProvider
-          auth={session || false}
-          key={session?.user_id || undefined}
-        >
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-          >
-            {children}
-          </ThemeProvider>
-        </AuthProvider>
+        <Suspense fallback={null}>
+          <SessionProviders>{children}</SessionProviders>
+        </Suspense>
       </body>
     </html>
   );
